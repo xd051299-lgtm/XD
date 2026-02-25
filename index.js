@@ -4,7 +4,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.get("/", (req, res) => {
-  res.send("50 WPM Gerçekçi Yazma Modu Aktif!");
+  res.send("50 WPM Modu Aktif: Hatalar Giderildi, Sistem Çalışıyor!");
 });
 
 app.listen(PORT, () => {
@@ -16,7 +16,7 @@ const CHANNEL_IDS = process.env.CHANNEL_IDS;
 const MESSAGE = process.env.MESSAGE;
 
 if (!TOKEN || !CHANNEL_IDS || !MESSAGE) {
-    console.error("HATA: Değişkenler eksik!");
+    console.error("HATA: Değişkenler eksik! Render panelini kontrol et.");
 } else {
     const channelList = CHANNEL_IDS.split(",").map(c => c.trim());
     
@@ -31,10 +31,9 @@ if (!TOKEN || !CHANNEL_IDS || !MESSAGE) {
                         { headers: { "Authorization": TOKEN } }
                     );
 
-                    // 2. 50 WPM HESABI: (Harf Sayısı * 240ms)
-                    // 50 WPM hızı, karakter başına yaklaşık 240 milisaniyeye denk gelir.
+                    // 2. 50 WPM HESABI: Harf başına 240ms bekleme
                     const typingTime = MESSAGE.length * 240;
-                    console.log(`[${channelId}] ${MESSAGE.length} harf için ${Math.round(typingTime/1000)}sn yazılıyor...`);
+                    console.log(`[${channelId}] Yazılıyor... Bekleme süresi: ${Math.round(typingTime/1000)} saniye.`);
                     
                     await new Promise(resolve => setTimeout(resolve, typingTime));
 
@@ -44,16 +43,17 @@ if (!TOKEN || !CHANNEL_IDS || !MESSAGE) {
                         { content: MESSAGE },
                         { headers: { "Authorization": TOKEN } }
                     );
-                    console.log(`[${channelId}] ✅ Mesaj Atıldı.`);
+                    console.log(`[${channelId}] ✅ Mesaj başarıyla atıldı.`);
 
-                    // Kanallar arası geçişte çok kısa (0.5sn) bekleme (Discord güvenliği için)
-                    await new Promise(resolve => setTimeout(resolve, 500);
+                    // 4. Kanal geçiş aralığı (Hata düzeltildi: Parantez eklendi)
+                    await new Promise(resolve => setTimeout(resolve, 500));
 
                 } catch (err) {
-                    console.error(`[${channelId}] Hata! 5sn sonra devam...`);
+                    console.error(`[${channelId}] ❌ Hata: ${err.response?.status || "Bağlantı"}. 5sn sonra devam...`);
                     await new Promise(resolve => setTimeout(resolve, 5000));
                 }
             }
+            console.log("Liste tamamlandı, başa dönülüyor...");
         }
     }
     startProcess();
