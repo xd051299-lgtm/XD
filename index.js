@@ -1,38 +1,60 @@
-const { Client } = require('discord.js-selfbot-v13');
 const express = require('express');
+const axios = require("axios");
 const app = express();
+const PORT = process.env.PORT || 3000;
 
-app.get("/", (req, res) => res.send("Sistem Aktif ve Beklemede..."));
-app.listen(process.env.PORT || 10000);
+app.get("/", (req, res) => {
+  res.send("50 WPM Gerçekçi Yazma Modu Aktif!");
+});
 
-const tokensRaw = process.env.TOKENS;
-const channelId = process.env.CHANNEL_ID;
+app.listen(PORT, () => {
+  console.log(`Sunucu ${PORT} portunda aktif.`);
+});
 
-if (tokensRaw && channelId) {
-    const tokenList = tokensRaw.split(/[\s,]+/).filter(t => t.length > 25);
+const TOKEN = process.env.TOKEN; 
+const CHANNEL_IDS = process.env.CHANNEL_IDS;
+const MESSAGE = process.env.MESSAGE;
+
+if (!TOKEN || !CHANNEL_IDS || !MESSAGE) {
+    console.error("HATA: Değişkenler eksik!");
+} else {
+    const channelList = CHANNEL_IDS.split(",").map(c => c.trim());
     
-    tokenList.forEach((token, index) => {
-        // Gecikmeyi 30 saniyeye çıkardık (Aşırı önemli)
-        setTimeout(() => {
-            const client = new Client({ checkUpdate: false });
-
-            client.on('ready', async () => {
-                console.log(`✅ [Bot ${index + 1}] Giriş Yaptı: ${client.user.tag}`);
+    async function startProcess() {
+        while (true) { 
+            for (const channelId of channelList) {
                 try {
-                    const channel = await client.channels.fetch(channelId);
-                    if (channel) {
-                        await client.voice.joinChannel(channel, { selfMute: true, selfDeaf: true });
-                        console.log(`🔊 [Bot ${index + 1}] Sese Girdi.`);
-                    }
-                } catch (e) {
-                    console.log(`❌ [Bot ${index + 1}] Ses Hatası.`);
-                }
-            });
+                    // 1. "Yazıyor..." animasyonu
+                    await axios.post(
+                        `https://discord.com/api/v9/channels/${channelId}/typing`,
+                        {},
+                        { headers: { "Authorization": TOKEN } }
+                    );
 
-            // Tarayıcı gibi görünerek girişi gizle
-            client.login(token).catch(() => {
-                console.log(`⚠️ [Bot ${index + 1}] Giriş Reddedildi! (Hesap kilitli veya IP banlı)`);
-            });
-        }, index * 30000); 
-    });
+                    // 2. 50 WPM HESABI: (Harf Sayısı * 240ms)
+                    // 50 WPM hızı, karakter başına yaklaşık 240 milisaniyeye denk gelir.
+                    const typingTime = MESSAGE.length * 240;
+                    console.log(`[${channelId}] ${MESSAGE.length} harf için ${Math.round(typingTime/1000)}sn yazılıyor...`);
+                    
+                    await new Promise(resolve => setTimeout(resolve, typingTime));
+
+                    // 3. Mesajı Gönder
+                    await axios.post(
+                        `https://discord.com/api/v9/channels/${channelId}/messages`,
+                        { content: MESSAGE },
+                        { headers: { "Authorization": TOKEN } }
+                    );
+                    console.log(`[${channelId}] ✅ Mesaj Atıldı.`);
+
+                    // Kanallar arası geçişte çok kısa (0.5sn) bekleme (Discord güvenliği için)
+                    await new Promise(resolve => setTimeout(resolve, 500);
+
+                } catch (err) {
+                    console.error(`[${channelId}] Hata! 5sn sonra devam...`);
+                    await new Promise(resolve => setTimeout(resolve, 5000));
+                }
+            }
+        }
+    }
+    startProcess();
 }
