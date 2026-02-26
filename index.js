@@ -1,60 +1,39 @@
-const express = require('express');
-const axios = require("axios");
-const app = express();
-const PORT = process.env.PORT || 3000;
+const { Client, GatewayIntentBits } = require('discord.js');
 
-app.get("/", (req, res) => {
-  res.send("50 WPM Modu Aktif: Hatalar Giderildi, Sistem Çalışıyor!");
-});
+// Render Environment Variables okuma
+const tokens = process.env.TOKENS ? process.env.TOKENS.split(',') : [];
+const channelIds = process.env.CHANNEL_IDS ? process.env.CHANNEL_IDS.split(',') : [];
+const messages = [process.env.MESSAGE1, process.env.MESSAGE2].filter(msg => msg);
 
-app.listen(PORT, () => {
-  console.log(`Sunucu ${PORT} portunda aktif.`);
-});
-
-const TOKEN = process.env.TOKEN; 
-const CHANNEL_IDS = process.env.CHANNEL_IDS;
-const MESSAGE = process.env.MESSAGE;
-
-if (!TOKEN || !CHANNEL_IDS || !MESSAGE) {
-    console.error("HATA: Değişkenler eksik! Render panelini kontrol et.");
-} else {
-    const channelList = CHANNEL_IDS.split(",").map(c => c.trim());
-    
-    async function startProcess() {
-        while (true) { 
-            for (const channelId of channelList) {
-                try {
-                    // 1. "Yazıyor..." animasyonu
-                    await axios.post(
-                        `https://discord.com/api/v9/channels/${channelId}/typing`,
-                        {},
-                        { headers: { "Authorization": TOKEN } }
-                    );
-
-                    // 2. 50 WPM HESABI: Harf başına 240ms bekleme
-                    const typingTime = MESSAGE.length * 240;
-                    console.log(`[${channelId}] Yazılıyor... Bekleme süresi: ${Math.round(typingTime/1000)} saniye.`);
-                    
-                    await new Promise(resolve => setTimeout(resolve, typingTime));
-
-                    // 3. Mesajı Gönder
-                    await axios.post(
-                        `https://discord.com/api/v9/channels/${channelId}/messages`,
-                        { content: MESSAGE },
-                        { headers: { "Authorization": TOKEN } }
-                    );
-                    console.log(`[${channelId}] ✅ Mesaj başarıyla atıldı.`);
-
-                    // 4. Kanal geçiş aralığı (Hata düzeltildi: Parantez eklendi)
-                    await new Promise(resolve => setTimeout(resolve, 500));
-
-                } catch (err) {
-                    console.error(`[${channelId}] ❌ Hata: ${err.response?.status || "Bağlantı"}. 5sn sonra devam...`);
-                    await new Promise(resolve => setTimeout(resolve, 5000));
-                }
-            }
-            console.log("Liste tamamlandı, başa dönülüyor...");
-        }
-    }
-    startProcess();
+if (tokens.length === 0) {
+    console.error("HATA: TOKENS boş bırakılamaz!");
+    process.exit(1);
 }
+
+// Her token için ayrı bir işlem başlatır
+tokens.forEach((token, index) => {
+    const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages] });
+
+    client.once('ready', async () => {
+        console.log(`Token ${index + 1} aktif: ${client.user.tag}`);
+
+        // Belirlenen kanallara mesajları gönderir
+        for (const channelId of channelIds) {
+            try {
+                const channel = await client.channels.fetch(channelId.trim());
+                if (channel) {
+                    for (const msg of messages) {
+                        await channel.send(msg);
+                        console.log(`[BAŞARILI] ${client.user.tag} -> Kanal: ${channelId}`);
+                    }
+                }
+            } catch (err) {
+                console.error(`[HATA] ${client.user.tag} Mesaj gönderemedi: ${err.message}`);
+            }
+        }
+    });
+
+    client.login(token.trim()).catch(err => {
+        console.error(`[GİRİŞ HATASI] Token ${index + 1} geçersiz: ${err.message}`);
+    });
+});
