@@ -5,65 +5,61 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.get("/", (req, res) => {
-  res.send("9 Hesaplı Senkronize Bot Sistemi Aktif! (3 Saniye Döngü)");
+  res.send("9 Hesap / Çift Mesaj Modu Aktif!");
 });
 
 app.listen(PORT, () => {
-  console.log(`Sunucu ${PORT} portunda çalışıyor.`);
+  console.log(`Sunucu ${PORT} portunda aktif.`);
 });
 
-// Render Environment Variables
+// Değişkenleri Temizle
 const tokensRaw = process.env.TOKENS; 
-const channelId = process.env.CHANNEL_ID;
-const message1 = process.env.MESSAGE1;
-const message2 = process.env.MESSAGE2;
+const channelId = process.env.CHANNEL_ID ? process.env.CHANNEL_ID.trim() : null;
+const msg1 = process.env.MESSAGE1;
+const msg2 = process.env.MESSAGE2;
 
-if (!tokensRaw || !channelId || !message1) {
-    console.error("HATA: Değişkenler eksik! Render panelini kontrol et.");
+if (!tokensRaw || !channelId || !msg1) {
+    console.error("HATA: Değişkenler (TOKEN, CHANNEL_ID veya MESSAGE1) eksik!");
 } else {
-    const tokenList = tokensRaw.split(",").map(t => t.trim());
-    
-    // İsteğin: 3 saniye toplam döngü süresi
-    const cycleTime = 3000; 
-    const staggerDelay = cycleTime / tokenList.length; // 9 hesap için ~333ms
+    const tokenList = tokensRaw.split(",").map(t => t.trim()).filter(t => t.length > 0);
+    const cycleTime = 3000; // Toplam 3 saniye
+    const staggerDelay = cycleTime / tokenList.length;
 
-    console.log(`Sistem Başlatıldı: ${tokenList.length} bot, ${Math.round(staggerDelay)}ms aralıkla çalışacak.`);
+    console.log(`${tokenList.length} bot başlatılıyor. Her bot ${Math.round(staggerDelay)}ms arayla devreye girecek.`);
 
     tokenList.forEach((token, index) => {
         const initialOffset = index * staggerDelay;
 
         setTimeout(() => {
-            // İlk tetikleme
-            sendRequest(token, index + 1);
+            // İlk tetikleme (Önce Mesaj 1, sonra Mesaj 2)
+            sendDualMessages(token, index + 1);
 
             // Periyodik döngü
             setInterval(() => {
-                sendRequest(token, index + 1);
+                sendDualMessages(token, index + 1);
             }, cycleTime);
 
-            console.log(`[Sıra ${index + 1}] Bot aktif edildi (+${Math.round(initialOffset)}ms)`);
+            console.log(`[Bot ${index + 1}] Çift mesaj döngüsü başladı.`);
         }, initialOffset);
     });
 }
 
-async function sendRequest(token, botNum) {
-    const url = `https://discord.com/api/v9/channels/${channelId.trim()}/messages`;
-    
-    // Rastgele mesaj seçimi veya sırayla gönderim
-    const content = Math.random() > 0.5 ? message1 : (message2 || message1);
+async function sendDualMessages(token, botNum) {
+    const url = `https://discord.com/api/v9/channels/${channelId}/messages`;
+    const headers = { 'Authorization': token, 'Content-Type': 'application/json' };
 
     try {
-        await axios.post(url, { content: content }, {
-            headers: { 'Authorization': token.trim() }
-        });
-        console.log(`[Bot ${botNum}] ✅ Mesaj Gönderildi`);
-    } catch (err) {
-        if (err.response?.status === 429) {
-            console.error(`[Bot ${botNum}] ⚠️ Rate Limit!`);
-        } else if (err.response?.status === 401) {
-            console.error(`[Bot ${botNum}] ❌ Yetkisiz: Token geçersiz!`);
-        } else {
-            console.error(`[Bot ${botNum}] ❌ Hata: ${err.response?.status}`);
+        // Mesaj 1 Gönderimi
+        await axios.post(url, { content: msg1.toString() }, { headers });
+        console.log(`[Bot ${botNum}] ✅ Mesaj 1 gönderildi.`);
+
+        // Mesaj 2 varsa, çok kısa bir bekleme (100ms) sonrası gönder
+        if (msg2) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+            await axios.post(url, { content: msg2.toString() }, { headers });
+            console.log(`[Bot ${botNum}] ✅ Mesaj 2 gönderildi.`);
         }
+    } catch (err) {
+        console.error(`[Bot ${botNum}] ❌ Hata: ${err.response?.status || "Bağlantı Sorunu"}`);
     }
 }
