@@ -1,38 +1,63 @@
-const { Client } = require('discord.js-selfbot-v13');
+const PORT = process.env.PORT || 3000;
 
-const tokens = process.env.TOKENS ? process.env.TOKENS.split(',') : [];
-const channelIds = process.env.CHANNEL_IDS ? process.env.CHANNEL_IDS.split(',') : [];
-const message1 = process.env.MESSAGE1;
-const message2 = process.env.MESSAGE2;
-
-const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-
-tokens.forEach((token, index) => {
-    const client = new Client({ checkUpdate: false });
-
-    client.on('ready', async () => {
-        console.log(`[GİRİŞ] Hesap ${index + 1}: ${client.user.tag}`);
-        
-        // İlk token 0sn, sonrakiler 0.238, 0.378 gibi rastgele gecikmelerle başlar
-        const initialDelay = index === 0 ? 0 : Math.floor(Math.random() * (450 - 200) + 200);
-        await sleep(initialDelay);
-
-        for (const id of channelIds) {
-            try {
-                const channel = await client.channels.fetch(id.trim());
-                if (channel) {
-                    // Mesajları gönder
-                    if (message1) await channel.send(message1);
-                    if (message2) await channel.send(message2);
-                    console.log(`[GÖNDERİLDİ] ${client.user.tag} -> Kanal: ${id.trim()} (${initialDelay}ms gecikme ile)`);
-                }
-            } catch (err) {
-                console.error(`[HATA] ${client.user.tag} gönderim yapamadı.`);
-            }
-        }
-    });
-
-    client.login(token.trim()).catch(() => {
-        console.error(`[TOKEN HATASI] Token ${index + 1} geçersiz!`);
-    });
+app.get("/", (req, res) => {
+  res.send("20 Kanallı Senkronize Bot Sistemi Aktif!");
+  res.send("Bot Sistemi: 8 Saniye Döngü Modu Aktif.");
 });
+
+app.listen(PORT, () => {
+  console.log(`Sunucu ${PORT} portunda çalışıyor.`);
+  console.log(`Sunucu ${PORT} portunda aktif.`);
+});
+
+// Render Environment Variables
+const tokensRaw = process.env.TOKENS; 
+const channelId = process.env.CHANNEL_ID;
+const messages = [process.env.MESSAGE1, process.env.MESSAGE2];
+
+if (!tokensRaw || !channelId || !messages[0] || !messages[1]) {
+    console.error("HATA: TOKENS, CHANNEL_ID, MESSAGE1 veya MESSAGE2 eksik!");
+    console.error("HATA: Değişkenler eksik! Lütfen Render panelini kontrol et.");
+} else {
+const tokenList = tokensRaw.split(",").map(t => t.trim());
+
+    // Toplam döngü süresi (5 saniye)
+    const cycleTime = 5000; 
+    // Her bot arasındaki gecikme (5000 / 20 = 250ms)
+    // Sabit Döngü: 8 Saniye
+    const cycleTime = 8000; 
+    // Otomatik Gecikme: 8000 / 19 = ~421ms
+const staggerDelay = cycleTime / tokenList.length; 
+
+    console.log(`${tokenList.length} bot için ${staggerDelay}ms aralıklı düzen kuruldu.`);
+    console.log(`Sistem Başlatıldı: ${tokenList.length} bot, ${Math.round(staggerDelay)}ms aralıkla çalışacak.`);
+
+tokenList.forEach((token, index) => {
+        // Her botun ilk başlama zamanını kaydırıyoruz
+const initialOffset = index * staggerDelay;
+
+setTimeout(() => {
+            // İlk mesajı gönder
+            // İlk tetikleme
+sendRequest(token, index + 1);
+
+            // Ardından her 5 saniyede bir tekrarla
+            // Periyodik döngü
+setInterval(() => {
+sendRequest(token, index + 1);
+}, cycleTime);
+
+            console.log(`Bot ${index + 1} kuyruğa girdi (Zamanlama: +${initialOffset}ms)`);
+            console.log(`[Sıra ${index + 1}] Bot kuyruğa eklendi (+${Math.round(initialOffset)}ms)`);
+}, initialOffset);
+});
+}
+@@ -63,7 +61,7 @@ function sendRequest(token, botNum) {
+})
+.catch((err) => {
+if (err.response?.status === 429) {
+            console.error(`[Bot ${botNum}] ⚠️ Rate Limit!`);
+            console.error(`[Bot ${botNum}] ⚠️ Hız sınırı (Rate Limit)!`);
+} else {
+console.error(`[Bot ${botNum}] ❌ Hata: ${err.response?.status}`);
+}
