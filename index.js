@@ -5,7 +5,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.get("/", (req, res) => {
-  res.send("17 Botlu Sistem Aktif - Döngü: 5 Saniye");
+  res.send("17 Botlu Sistem Aktif - Döngü: 3 Saniye");
 });
 
 app.listen(PORT, () => {
@@ -23,11 +23,11 @@ if (!tokensRaw || !channelsRaw || !msg1) {
     const tokenList = tokensRaw.split(",").map(t => t.trim()).filter(t => t.length > 0);
     const channelList = channelsRaw.split(",").map(c => c.trim()).filter(c => c.length > 0);
     
-    // İsteğin üzerine: Her hesap 5 saniyede bir atacak
-    const cycleTime = 5000; 
-    const staggerDelay = cycleTime / tokenList.length; // ~294ms aralık
+    // Döngü süresi 3 saniye olarak ayarlandı
+    const cycleTime = 3000; 
+    const staggerDelay = cycleTime / tokenList.length; // 17 bot için ~176ms
 
-    console.log(`${tokenList.length} bot için 5 saniyelik döngü kuruldu.`);
+    console.log(`${tokenList.length} bot için 3 saniyelik (hızlı) döngü kuruldu.`);
 
     tokenList.forEach((token, index) => {
         const initialOffset = index * staggerDelay;
@@ -39,7 +39,7 @@ if (!tokensRaw || !channelsRaw || !msg1) {
                 sendToAllChannels(token, index + 1, channelList);
             }, cycleTime);
 
-            console.log(`[Bot ${index + 1}] Sıraya girdi (+${Math.round(initialOffset)}ms)`);
+            console.log(`[Bot ${index + 1}] Yayına girdi (+${Math.round(initialOffset)}ms)`);
         }, initialOffset);
     });
 }
@@ -51,16 +51,24 @@ async function sendToAllChannels(token, botNum, channelList) {
         const url = `https://discord.com/api/v9/channels/${channelId}/messages`;
         
         try {
+            // Mesaj 1
             await axios.post(url, { content: msg1.toString() }, { headers });
             
             if (msg2) {
-                await new Promise(r => setTimeout(r, 300)); // İki mesaj arası güvenli boşluk
+                // Hızlı döngüde mesajlar arası bekleme 100ms'ye düşürüldü
+                await new Promise(r => setTimeout(r, 100)); 
+                // Mesaj 2
                 await axios.post(url, { content: msg2.toString() }, { headers });
             }
-            console.log(`[Bot ${botNum}] ✅ Kanal ${channelId} -> Gönderildi`);
+            console.log(`[Bot ${botNum}] ✅ Kanal ${channelId} -> Başarılı`);
         } catch (err) {
-            console.error(`[Bot ${botNum}] ❌ Hata: ${err.response?.status}`);
+            if (err.response?.status === 429) {
+                console.error(`[Bot ${botNum}] ⚠️ Rate Limit (Hız Sınırı)!`);
+            } else {
+                console.error(`[Bot ${botNum}] ❌ Hata: ${err.response?.status}`);
+            }
         }
-        await new Promise(r => setTimeout(r, 250)); // Kanallar arası güvenli boşluk
+        // Kanallar arası bekleme 100ms
+        await new Promise(r => setTimeout(r, 100));
     }
 }
