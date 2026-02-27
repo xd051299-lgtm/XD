@@ -5,65 +5,64 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.get("/", (req, res) => {
-  res.send("Çoklu Kanal & Çoklu Bot Sistemi Aktif!");
+  res.send("8 Hesaplı Senkronize Bot Sistemi Aktif! (5 Saniye Döngü)");
 });
 
 app.listen(PORT, () => {
-  console.log(`Sunucu ${PORT} portunda çalışıyor.`);
+  console.log(`Sunucu ${PORT} portunda aktif.`);
 });
 
 // Render Environment Variables
 const tokensRaw = process.env.TOKENS; 
-const channelsRaw = process.env.CHANNEL_IDS; // Virgülle ayrılmış ID'ler
+const channelId = process.env.CHANNEL_ID;
 const msg1 = process.env.MESSAGE1;
 const msg2 = process.env.MESSAGE2;
 
-if (!tokensRaw || !channelsRaw || !msg1) {
-    console.error("HATA: TOKENS, CHANNEL_IDS veya MESSAGE1 eksik!");
+if (!tokensRaw || !channelId || !msg1) {
+    console.error("HATA: Değişkenler eksik! Render panelini kontrol et.");
 } else {
     const tokenList = tokensRaw.split(",").map(t => t.trim()).filter(t => t.length > 0);
-    const channelList = channelsRaw.split(",").map(c => c.trim()).filter(c => c.length > 0);
     
-    const cycleTime = 3000; // 3 Saniye döngü
-    const staggerDelay = cycleTime / tokenList.length;
+    // İstediğin Ayar: Toplam döngü süresi 5 saniye (5000ms)
+    const cycleTime = 5000; 
+    // 8 hesap için her bot arası gecikme: 5000 / 8 = 625ms
+    const staggerDelay = cycleTime / tokenList.length; 
 
-    console.log(`${tokenList.length} bot, ${channelList.length} kanal için başlatılıyor.`);
+    console.log(`${tokenList.length} bot için ${Math.round(staggerDelay)}ms aralıklı düzen kuruldu.`);
 
     tokenList.forEach((token, index) => {
         const initialOffset = index * staggerDelay;
 
         setTimeout(() => {
             // İlk tetikleme
-            sendToAllChannels(token, index + 1, channelList);
+            sendRequest(token, index + 1);
 
-            // Periyodik döngü
+            // Periyodik döngü (Her 5 saniyede bir)
             setInterval(() => {
-                sendToAllChannels(token, index + 1, channelList);
+                sendRequest(token, index + 1);
             }, cycleTime);
 
-            console.log(`[Bot ${index + 1}] Aktif (Gecikme: +${Math.round(initialOffset)}ms)`);
+            console.log(`[Bot ${index + 1}] Döngüye girdi (+${Math.round(initialOffset)}ms gecikmeyle)`);
         }, initialOffset);
     });
 }
 
-async function sendToAllChannels(token, botNum, channelList) {
-    const headers = { 'Authorization': token, 'Content-Type': 'application/json' };
+async function sendRequest(token, botNum) {
+    const url = `https://discord.com/api/v9/channels/${channelId.trim()}/messages`;
+    // Mesaj 1 ve Mesaj 2 arasında rastgele seçim yapabilir veya msg1 kullanabilirsin
+    const content = msg2 ? (Math.random() > 0.5 ? msg1 : msg2) : msg1;
 
-    for (const channelId of channelList) {
-        const url = `https://discord.com/api/v9/channels/${channelId}/messages`;
-        
-        try {
-            // Önce Mesaj 1
-            await axios.post(url, { content: msg1.toString() }, { headers });
-            
-            // Varsa Mesaj 2 (Arada 100ms kısa boşluk)
-            if (msg2) {
-                await new Promise(r => setTimeout(r, 100));
-                await axios.post(url, { content: msg2.toString() }, { headers });
-            }
-            console.log(`[Bot ${botNum}] ✅ Kanal ${channelId} -> Başarılı`);
-        } catch (err) {
-            console.error(`[Bot ${botNum}] ❌ Kanal ${channelId} -> Hata: ${err.response?.status || "Bağlantı"}`);
+    try {
+        await axios.post(url, 
+            { content: content }, 
+            { headers: { 'Authorization': token.trim(), 'Content-Type': 'application/json' } }
+        );
+        console.log(`[Bot ${botNum}] ✅ Mesaj Gönderildi`);
+    } catch (err) {
+        if (err.response?.status === 429) {
+            console.error(`[Bot ${botNum}] ⚠️ Rate Limit (Hız Sınırı)!`);
+        } else {
+            console.error(`[Bot ${botNum}] ❌ Hata: ${err.response?.status}`);
         }
     }
 }
