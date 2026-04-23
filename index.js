@@ -1,51 +1,50 @@
-const http = require('http');
+const express = require('express');
+const axios = require("axios");
 
-const TOKENS = process.env.TOKENS ? process.env.TOKENS.split(',').map(t => t.trim()).filter(Boolean) : [];
-const CHANNEL_IDS = process.env.CHANNEL_IDS ? process.env.CHANNEL_IDS.split(',').map(c => c.trim()).filter(Boolean) : [];
-const MESSAGE1 = process.env.MESSAGE1 || '';
-const MESSAGE2 = process.env.MESSAGE2 || '';
+const app = express();
+const PORT = process.env.PORT || 3000;
 
-if (!TOKENS.length || !CHANNEL_IDS.length || (!MESSAGE1 && !MESSAGE2)) { console.error('[X] Degiskenler eksik!'); process.exit(1); }
+// Render'ın uyumaması için basit bir ana sayfa
+app.get("/", (req, res) => {
+  res.send("Bot aktif ve kanalları geziyor...");
+});
 
-const MESSAGES = [MESSAGE1, MESSAGE2].filter(Boolean);
+app.listen(PORT, () => {
+  console.log(`Sunucu ${PORT} portunda dinleniyor.`);
+});
 
-console.log(`[*] ${TOKENS.length} token | ${CHANNEL_IDS.length} kanal | ${MESSAGES.length} mesaj`);
-console.log('[*] Baslatiliyor...\n');
+// Environment değişkenlerini alıyoruz
+const token = process.env.TOKEN;
+const message = process.env.MESSAGE;
+// İstediğin gibi CHANNEL_IDS olarak güncellendi
+const channelIds = process.env.CHANNEL_IDS ? process.env.CHANNEL_IDS.split(",") : [];
 
-let totalSent = 0;
-let currentTokenIndex = 0;
+let currentIndex = 0;
 
-async function tick() {
-    const token = TOKENS[currentTokenIndex];
-    currentTokenIndex = (currentTokenIndex + 1) % TOKENS.length;
-
-    const channelId = CHANNEL_IDS[Math.floor(Math.random() * CHANNEL_IDS.length)];
-    const message = MESSAGES[Math.floor(Math.random() * MESSAGES.length)];
-
-    try {
-        const res = await fetch(`https://discord.com/api/v9/channels/${channelId}/messages`, {
-            method: 'POST',
-            headers: {
-                'Authorization': token,
-                'Content-Type': 'application/json',
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
-            },
-            body: JSON.stringify({ content: message })
-        });
-
-        if (res.ok) {
-            totalSent++;
-            console.log(`[+] Hesap #${currentTokenIndex} | Toplam: ${totalSent}`);
-        }
-    } catch { }
-
-    setImmediate(tick);
+if (!token || channelIds.length === 0 || !message) {
+    console.error("HATA: TOKEN, CHANNEL_IDS veya MESSAGE eksik!");
+} else {
+    // 5 saniyede bir gönderim yapar (İstersen süreyi değiştirebilirsin)
+    setInterval(sendMessage, 5000);
 }
 
-tick();
+function sendMessage() {
+  // Sıradaki kanal ID'sini al ve boşlukları temizle
+  const currentChannel = channelIds[currentIndex].trim();
 
-const PORT = process.env.PORT || 3000;
-http.createServer((req, res) => {
-    res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
-    res.end(`Aktif | Gonderilen: ${totalSent}`);
-}).listen(PORT, () => console.log(`[*] Port ${PORT} aktif\n`));
+  axios.post(`https://discord.com/api/v9/channels/${currentChannel}/messages`, {
+    content: message
+  }, {
+    headers: {
+      "Authorization": token,
+      "Content-Type": "application/json"
+    }
+  }).then(() => {
+    console.log(`✅ [Sıra: ${currentIndex + 1}/${channelIds.length}] Kanal: ${currentChannel} -> Mesaj gönderildi.`);
+  }).catch((err) => {
+    console.error(`❌ Kanal: ${currentChannel} gönderim hatası:`, err.response?.status);
+  });
+
+  // Bir sonraki kanala geç, liste biterse başa dön
+  currentIndex = (currentIndex + 1) % channelIds.length;
+}
