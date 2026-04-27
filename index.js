@@ -5,41 +5,36 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.get("/", (req, res) => {
-  res.send("Bot 5-8 saniye korumalı modda çalışıyor...");
+  res.send("Hız Modu: 2 Saniye Döngü Aktif...");
 });
 
 app.listen(PORT, () => {
-  console.log(`Sunucu ${PORT} portunda dinleniyor.`);
+  console.log(`Sunucu ${PORT} portunda çalışıyor.`);
 });
 
-const token = process.env.TOKEN;
+const tokens = process.env.TOKENS ? process.env.TOKENS.split(",") : [];
 const message = process.env.MESSAGE;
 const channelIds = process.env.CHANNEL_IDS ? process.env.CHANNEL_IDS.split(",") : [];
 
-let currentIndex = 0;
-let isWaiting = false;
+let currentTokenIndex = 0;
+let currentChannelIndex = 0;
 
-if (!token || channelIds.length === 0 || !message) {
-    console.error("HATA: TOKEN, CHANNEL_IDS veya MESSAGE eksik!");
+// 10 token için toplam 2 saniye (2000ms / 10 = 200ms)
+const delayBetweenAccounts = 200; 
+
+if (tokens.length === 0 || channelIds.length === 0 || !message) {
+    console.error("HATA: Bilgiler eksik!");
 } else {
-    startLoop();
+    console.log("🚀 Işık hızı modu başlatıldı. Dikkatli ol!");
+    runSequence();
 }
 
-function startLoop() {
-    if (isWaiting) return;
+async function runSequence() {
+    const token = tokens[currentTokenIndex].trim();
+    const channel = channelIds[currentChannelIndex].trim();
 
-    // 5000ms (5s) ile 8000ms (8s) arasında rastgele bir süre belirler
-    const randomDelay = Math.floor(Math.random() * (8000 - 5000 + 1) + 5000);
-    
-    setTimeout(() => {
-        sendMessage();
-    }, randomDelay);
-}
-
-function sendMessage() {
-    const currentChannel = channelIds[currentIndex].trim();
-
-    axios.post(`https://discord.com/api/v9/channels/${currentChannel}/messages`, {
+    // İstek gönderiliyor (Hız için 'then/catch' yapısı kullanıldı)
+    axios.post(`https://discord.com/api/v9/channels/${channel}/messages`, {
         content: message
     }, {
         headers: {
@@ -47,23 +42,19 @@ function sendMessage() {
             "Content-Type": "application/json"
         }
     }).then(() => {
-        console.log(`✅ [${currentIndex + 1}/${channelIds.length}] Kanal: ${currentChannel} -> Gönderildi (${(Date.now() % 10000)}ms)`);
-        
-        currentIndex = (currentIndex + 1) % channelIds.length;
-        startLoop(); 
+        console.log(`✅ [Token ${currentTokenIndex + 1}] -> Gönderildi.`);
     }).catch((err) => {
         if (err.response?.status === 429) {
-            const retryAfter = (err.response.data.retry_after * 1000) || 60000;
-            console.error(`⚠️ RATE LIMIT! ${retryAfter/1000} saniye mola...`);
-            isWaiting = true;
-            setTimeout(() => { 
-                isWaiting = false; 
-                startLoop(); 
-            }, retryAfter);
-        } else {
-            console.error(`❌ Hata (${currentChannel}):`, err.response?.status);
-            currentIndex = (currentIndex + 1) % channelIds.length;
-            startLoop();
+            console.warn(`⚠️ [Token ${currentTokenIndex + 1}] LİMİT!`);
+        } else if (err.response?.status === 401) {
+            console.error(`❌ [Token ${currentTokenIndex + 1}] YETKİ HATASI (401)!`);
         }
     });
+
+    // Sıralama mantığı
+    currentChannelIndex = (currentChannelIndex + 1) % channelIds.length;
+    currentTokenIndex = (currentTokenIndex + 1) % tokens.length;
+
+    // 200ms sonra sıradaki tokene geç
+    setTimeout(runSequence, delayBetweenAccounts);
 }
