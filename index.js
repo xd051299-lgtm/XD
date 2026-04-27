@@ -5,56 +5,66 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.get("/", (req, res) => {
-  res.send("Hız Modu: 2 Saniye Döngü Aktif...");
+  res.send("Bot yazma özelliğiyle aktif!");
 });
 
 app.listen(PORT, () => {
-  console.log(`Sunucu ${PORT} portunda çalışıyor.`);
+  console.log(`Sunucu ${PORT} portunda dinleniyor.`);
 });
 
-const tokens = process.env.TOKENS ? process.env.TOKENS.split(",") : [];
+// --- AYARLAR ---
+const token = process.env.TOKEN;
 const message = process.env.MESSAGE;
-const channelIds = process.env.CHANNEL_IDS ? process.env.CHANNEL_IDS.split(",") : [];
+const channels = [
+  "1467580268075421789",
+  "1465058037088784447",
+  "1465052769743405128"
+];
 
-let currentTokenIndex = 0;
-let currentChannelIndex = 0;
+let currentIndex = 0;
 
-// 10 token için toplam 2 saniye (2000ms / 10 = 200ms)
-const delayBetweenAccounts = 200; 
-
-if (tokens.length === 0 || channelIds.length === 0 || !message) {
-    console.error("HATA: Bilgiler eksik!");
+if (!token || !message) {
+    console.error("HATA: TOKEN veya MESSAGE eksik!");
 } else {
-    console.log("🚀 Işık hızı modu başlatıldı. Dikkatli ol!");
-    runSequence();
+    // Döngüyü başlat
+    setInterval(handleCycle, 5000);
 }
 
-async function runSequence() {
-    const token = tokens[currentTokenIndex].trim();
-    const channel = channelIds[currentChannelIndex].trim();
+async function handleCycle() {
+  const currentChannelId = channels[currentIndex];
 
-    // İstek gönderiliyor (Hız için 'then/catch' yapısı kullanıldı)
-    axios.post(`https://discord.com/api/v9/channels/${channel}/messages`, {
-        content: message
-    }, {
-        headers: {
-            "Authorization": token,
-            "Content-Type": "application/json"
-        }
-    }).then(() => {
-        console.log(`✅ [Token ${currentTokenIndex + 1}] -> Gönderildi.`);
-    }).catch((err) => {
-        if (err.response?.status === 429) {
-            console.warn(`⚠️ [Token ${currentTokenIndex + 1}] LİMİT!`);
-        } else if (err.response?.status === 401) {
-            console.error(`❌ [Token ${currentTokenIndex + 1}] YETKİ HATASI (401)!`);
-        }
+  try {
+    // 1. Önce "Yazıyor..." animasyonunu gönder
+    await axios.post(`https://discord.com/api/v9/channels/${currentChannelId}/typing`, {}, {
+      headers: { "Authorization": token }
     });
 
-    // Sıralama mantığı
-    currentChannelIndex = (currentChannelIndex + 1) % channelIds.length;
-    currentTokenIndex = (currentTokenIndex + 1) % tokens.length;
+    // 2. Kısa bir gecikme (Gerçekçi görünmesi için 1.5 saniye bekle ve mesajı at)
+    setTimeout(() => {
+      sendActualMessage(currentChannelId);
+    }, 1500);
 
-    // 200ms sonra sıradaki tokene geç
-    setTimeout(runSequence, delayBetweenAccounts);
+  } catch (err) {
+    console.error(`❌ Typing hatası (${currentChannelId}):`, err.response?.status);
+    // Hata olsa bile sırayı kaydır ki takılmasın
+    currentIndex = (currentIndex + 1) % channels.length;
+  }
+}
+
+function sendActualMessage(channelId) {
+  axios.post(`https://discord.com/api/v9/channels/${channelId}/messages`, {
+    content: message
+  }, {
+    headers: {
+      "Authorization": token,
+      "Content-Type": "application/json"
+    }
+  }).then(() => {
+    console.log(`✅ Mesaj Gönderildi: ${channelId}`);
+    // Mesaj başarılıysa bir sonraki kanala geç
+    currentIndex = (currentIndex + 1) % channels.length;
+  }).catch((err) => {
+    console.error(`❌ Mesaj Hatası (${channelId}):`, err.response?.status);
+    currentIndex = (currentIndex + 1) % channels.length;
+  });
 }
